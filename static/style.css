@@ -1,0 +1,5 @@
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+.learn-card { transition: box-shadow .2s ease; }
+.learn-card:hover { box-shadow: 0 6px 20px rgba(0,0,0,.08); }
+.answer { word-wrap: break-word; }
+.display-6 { font-size: clamp(1.5rem, 5vw, 2.5rem); }

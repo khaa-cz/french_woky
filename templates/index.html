@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FR ⇄ DE Vokabeltrainer</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="container py-4">
+    <header class="d-flex justify-content-between align-items-center mb-3">
+      <h1 class="h3 m-0">FR ⇄ DE Vokabeltrainer</h1>
+      <div>
+        <button id="btn-home" class="btn btn-warning d-none">Menü</button>
+      </div>
+    </header>
+
+    <section id="mode-select" class="text-center">
+      <div class="btn-group btn-group-lg" role="group">
+        <button class="btn btn-primary" id="btn-learning">Lernen</button>
+        <button class="btn btn-primary" id="btn-testing">Testen</button>
+      </div>
+      <div class="mt-3">
+        <div class="btn-group" role="group">
+          <button class="btn btn-outline-secondary active" id="dir-fr-de" data-dir="fr-de">FR → DE</button>
+          <button class="btn btn-outline-secondary" id="dir-de-fr" data-dir="de-fr">DE → FR</button>
+        </div>
+      </div>
+      <div class="mt-3">
+        <button id="btn-reset" class="btn btn-outline-danger btn-sm">Bekannte Wörter zurücksetzen</button>
+      </div>
+    </section>
+
+    <section id="learning" class="d-none">
+      <h2 class="h4 mt-3">Lernen</h2>
+      <div id="learn-empty" class="alert alert-warning d-none">Keine Vokabeln geladen. Prüfen Sie den Ordner /words und die JSON-Dateien.</div>
+      <div class="d-flex justify-content-between align-items-center mt-2">
+        <div class="small text-muted" id="learn-count"></div>
+        <div id="learn-pager" class="btn-group">
+          <button id="learn-prev" class="btn btn-outline-secondary btn-sm">Zurück</button>
+          <span id="learn-page-label" class="btn btn-outline-secondary btn-sm disabled">Seite 1/1</span>
+          <button id="learn-next" class="btn btn-outline-secondary btn-sm">Weiter</button>
+        </div>
+      </div>
+      <div id="learn-list" class="row g-3 mt-2"></div>
+    </section>
+
+    <section id="testing" class="d-none">
+      <h2 class="h4 mt-3">Test</h2>
+      <div class="card mt-2">
+        <div class="card-body">
+          <div class="d-flex justify-content-between flex-wrap gap-2">
+            <div>
+              <div class="text-muted small" id="test-pron"></div>
+              <div class="display-6" id="test-question">Klicken Sie „Weiter“ für die erste Frage.</div>
+            </div>
+            <div class="text-end">
+              <div><span class="badge bg-success" id="known-count">0 bekannt</span></div>
+              <div class="small text-muted mt-1" id="remaining-label">Verbleibend: — / —</div>
+            </div>
+          </div>
+          <div class="mt-3">
+            <button id="btn-show" class="btn btn-outline-secondary me-2">Antwort anzeigen</button>
+            <button id="btn-known" class="btn btn-success me-2" disabled>Ich kann es</button>
+            <button id="btn-next" class="btn btn-primary">Weiter</button>
+          </div>
+          <div class="mt-3">
+            <div id="test-answer" class="fs-3 text-primary d-none">—</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const btnLearning = document.getElementById('btn-learning');
+    const btnTesting = document.getElementById('btn-testing');
+    const btnHome = document.getElementById('btn-home');
+    const btnReset = document.getElementById('btn-reset');
+    const dirFrDe = document.getElementById('dir-fr-de');
+    const dirDeFr = document.getElementById('dir-de-fr');
+
+    const modeSelect = document.getElementById('mode-select');
+    const learningSec = document.getElementById('learning');
+    const testingSec = document.getElementById('testing');
+
+    let direction = 'fr-de';
+
+    // Learning pagination state
+    let learnData = [];
+    let learnPageSize = 12;
+    let learnPage = 1;
+
+    function setDirection(dir) {
+      direction = dir;
+      dirFrDe.classList.toggle('active', dir === 'fr-de');
+      dirDeFr.classList.toggle('active', dir === 'de-fr');
+      // If we are inside a mode, refresh data accordingly
+      if (!modeSelect.classList.contains('d-none')) return;
+      if (!learningSec.classList.contains('d-none')) loadLearn();
+      if (!testingSec.classList.contains('d-none')) { resetTestUI(); nextTest(); }
+    }
+
+    dirFrDe.addEventListener('click', () => setDirection('fr-de'));
+    dirDeFr.addEventListener('click', () => setDirection('de-fr'));
+
+    function showHome() {
+      modeSelect.classList.remove('d-none');
+      learningSec.classList.add('d-none');
+      testingSec.classList.add('d-none');
+      btnHome.classList.add('d-none');
+    }
+
+    function showLearning() {
+      modeSelect.classList.add('d-none');
+      testingSec.classList.add('d-none');
+      learningSec.classList.remove('d-none');
+      btnHome.classList.remove('d-none');
+      learnPage = 1;
+      loadLearn();
+    }
+
+    function showTesting() {
+      modeSelect.classList.add('d-none');
+      learningSec.classList.add('d-none');
+      testingSec.classList.remove('d-none');
+      btnHome.classList.remove('d-none');
+      resetTestUI();
+      updateCounts();
+      nextTest();
+    }
+
+    btnHome.addEventListener('click', showHome);
+    btnLearning.addEventListener('click', showLearning);
+    btnTesting.addEventListener('click', showTesting);
+
+    btnReset.addEventListener('click', async () => {
+      try {
+        await fetch('/reset_known', { method: 'POST' });
+        updateCounts();
+        alert('Bekannte Wörter wurden zurückgesetzt.');
+      } catch (e) { console.error(e); }
+    });
+
+    async function loadLearn() {
+      const grid = document.getElementById('learn-list');
+      const empty = document.getElementById('learn-empty');
+      const count = document.getElementById('learn-count');
+      grid.innerHTML = '';
+      empty.classList.add('d-none');
+      try {
+        const res = await fetch(`/learn?direction=${encodeURIComponent(direction)}`);
+        learnData = await res.json();
+        if (!Array.isArray(learnData) || learnData.length === 0) {
+          count.textContent = '';
+          empty.classList.remove('d-none');
+          return;
+        }
+        count.textContent = `${learnData.length} Einträge`;
+        renderLearnPage();
+      } catch (e) {
+        console.error(e);
+        empty.classList.remove('d-none');
+      }
+    }
+
+    function renderLearnPage() {
+      const grid = document.getElementById('learn-list');
+      const pageLabel = document.getElementById('learn-page-label');
+      const btnPrev = document.getElementById('learn-prev');
+      const btnNext = document.getElementById('learn-next');
+      grid.innerHTML = '';
+      const total = learnData.length;
+      const totalPages = Math.max(1, Math.ceil(total / learnPageSize));
+      learnPage = Math.min(Math.max(1, learnPage), totalPages);
+      pageLabel.textContent = `Seite ${learnPage}/${totalPages}`;
+      btnPrev.disabled = learnPage <= 1;
+      btnNext.disabled = learnPage >= totalPages;
+      const start = (learnPage - 1) * learnPageSize;
+      const end = Math.min(total, start + learnPageSize);
+      const slice = learnData.slice(start, end);
+
+      slice.forEach((item) => {
+        const col = document.createElement('div');
+        col.className = 'col-12 col-md-6 col-lg-4';
+        col.innerHTML = `
+          <div class=\"card h-100 learn-card\">\n            <div class=\"card-body\">\n              <div class=\"text-muted small\">${item.pron || ''}</div>\n              <div class=\"fw-bold\">${item.from}</div>\n              <div class=\"text-secondary answer d-none mt-2\">${item.to}</div>\n              <button class=\"btn btn-sm btn-outline-primary mt-3\">Antwort anzeigen</button>\n            </div>\n          </div>`;
+        const btn = col.querySelector('button');
+        const answer = col.querySelector('.answer');
+        btn.addEventListener('click', () => { answer.classList.toggle('d-none'); });
+        grid.appendChild(col);
+      });
+
+      document.getElementById('learn-prev').onclick = () => { learnPage--; renderLearnPage(); };
+      document.getElementById('learn-next').onclick = () => { learnPage++; renderLearnPage(); };
+    }
+
+    // Testing
+    const testQuestion = document.getElementById('test-question');
+    const testPron = document.getElementById('test-pron');
+    const testAnswer = document.getElementById('test-answer');
+    const btnShow = document.getElementById('btn-show');
+    const btnKnown = document.getElementById('btn-known');
+    const btnNext = document.getElementById('btn-next');
+    const knownCount = document.getElementById('known-count');
+    const remainingLabel = document.getElementById('remaining-label');
+    let currentTestItem = null;
+
+    function resetTestUI() {
+      testQuestion.textContent = '—';
+      testPron.textContent = '';
+      testAnswer.textContent = '—';
+      testAnswer.classList.add('d-none');
+      btnKnown.disabled = true;
+      currentTestItem = null;
+    }
+
+    async function updateCounts() {
+      try {
+        const [vocabRes, knownRes] = await Promise.all([
+          fetch('/vocab'),
+          fetch('/known')
+        ]);
+        const vocab = await vocabRes.json();
+        const known = await knownRes.json();
+        const total = Array.isArray(vocab) ? vocab.length : 0;
+        const knownN = Array.isArray(known) ? known.length : 0;
+        const remain = Math.max(0, total - knownN);
+        knownCount.textContent = `${knownN} bekannt`;
+        remainingLabel.textContent = `Verbleibend: ${remain} / ${total}`;
+      } catch (e) {}
+    }
+
+    async function nextTest() {
+      try {
+        const res = await fetch(`/test?direction=${encodeURIComponent(direction)}`);
+        if (!res.ok) {
+          const err = await res.json();
+          testQuestion.textContent = err.detail || 'Keine Daten';
+          btnKnown.disabled = true;
+          currentTestItem = null;
+          return;
+        }
+        const data = await res.json();
+        currentTestItem = data;
+        testQuestion.textContent = data.question;
+        testPron.textContent = data.pron || '';
+        testAnswer.textContent = data.answer;
+        testAnswer.classList.add('d-none');
+        btnKnown.disabled = false;
+        updateCounts();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    btnShow.addEventListener('click', () => {
+      testAnswer.classList.toggle('d-none');
+    });
+
+    btnKnown.addEventListener('click', async () => {
+      try {
+        if (!currentTestItem) return;
+        await fetch('/mark_known', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fr: currentTestItem.fr, de: currentTestItem.de })
+        });
+        await updateCounts();
+        nextTest();
+      } catch (e) { console.error(e); }
+    });
+
+    btnNext.addEventListener('click', nextTest);
+
+    // Initial counts on load
+    updateCounts();
+  </script>
+</body>
+</html>
