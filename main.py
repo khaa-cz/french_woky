@@ -166,14 +166,22 @@ async def learn(direction: str = "fr-de"):
 
 
 @app.get("/test")
-async def test(direction: str = "fr-de"):
+async def test(direction: str = "fr-de", exclude: Optional[str] = None):
     if direction not in {"fr-de", "de-fr"}:
         raise HTTPException(status_code=400, detail="Invalid direction. Use fr-de or de-fr")
 
     # Filter out known
     unknown = [it for it in VOCAB if (it["fr"], it["de"]) not in KNOWN]
+    # Further filter excluded numbers if provided
+    if exclude:
+        try:
+            ex_nums = set(int(x) for x in re.split(r"[,\s]+", exclude.strip()) if x)
+        except Exception:
+            ex_nums = set()
+        if ex_nums:
+            unknown = [it for it in unknown if it.get("num") not in ex_nums]
     if not unknown:
-        raise HTTPException(status_code=404, detail="All words are marked as known. Reset to continue.")
+        raise HTTPException(status_code=404, detail="Keine weiteren Wörter für diesen Test. Markieren Sie einige als bekannt oder starten Sie die Sitzung neu.")
 
     choice = random.choice(unknown)
     if direction == "fr-de":
