@@ -85,7 +85,12 @@ def load_vocab() -> List[Dict[str, str]]:
     if not os.path.isdir(WORDS_DIR):
         return result
     try:
-        files = sorted([f for f in os.listdir(WORDS_DIR) if f.endswith('.json')])
+        files = [f for f in os.listdir(WORDS_DIR) if f.endswith('.json')]
+        # natural sort by embedded number in filenames like list1.json, list2.json, ...
+        def file_key(name: str):
+            m = re.search(r"(\d+)", name)
+            return (int(m.group(1)) if m else float('inf'), name)
+        files.sort(key=file_key)
     except Exception:
         files = []
 
@@ -112,6 +117,9 @@ def load_vocab() -> List[Dict[str, str]]:
 async def on_startup():
     global VOCAB, KNOWN
     VOCAB = load_vocab()
+    # assign stable sequence numbers starting at 1
+    for idx, it in enumerate(VOCAB, start=1):
+        it["num"] = idx
     KNOWN = load_known()
 
 
@@ -137,7 +145,8 @@ def transform_direction(direction: str, items: List[Dict[str, str]]):
                 "to": it["de"],
                 "pron": it.get("pron", ""),
                 "fr": it["fr"],
-                "de": it["de"]
+                "de": it["de"],
+                "num": it.get("num")
             })
         else:
             mapped.append({
@@ -145,7 +154,8 @@ def transform_direction(direction: str, items: List[Dict[str, str]]):
                 "to": it["fr"],
                 "pron": it.get("pron", ""),
                 "fr": it["fr"],
-                "de": it["de"]
+                "de": it["de"],
+                "num": it.get("num")
             })
     return mapped
 
@@ -172,7 +182,8 @@ async def test(direction: str = "fr-de"):
             "answer": choice["de"],
             "pron": choice.get("pron", ""),
             "fr": choice["fr"],
-            "de": choice["de"]
+            "de": choice["de"],
+            "num": choice.get("num")
         }
     else:
         payload = {
@@ -180,7 +191,8 @@ async def test(direction: str = "fr-de"):
             "answer": choice["fr"],
             "pron": choice.get("pron", ""),
             "fr": choice["fr"],
-            "de": choice["de"]
+            "de": choice["de"],
+            "num": choice.get("num")
         }
     return payload
 

@@ -52,6 +52,7 @@
         <div class="card-body">
           <div class="d-flex justify-content-between flex-wrap gap-2">
             <div>
+              <div class="text-muted small" id="test-num"></div>
               <div class="text-muted small" id="test-pron"></div>
               <div class="display-6" id="test-question">Klicken Sie „Weiter“ für die erste Frage.</div>
             </div>
@@ -185,7 +186,7 @@
         const col = document.createElement('div');
         col.className = 'col-12 col-md-6 col-lg-4';
         col.innerHTML = `
-          <div class=\"card h-100 learn-card\">\n            <div class=\"card-body\">\n              <div class=\"text-muted small\">${item.pron || ''}</div>\n              <div class=\"fw-bold\">${item.from}</div>\n              <div class=\"text-secondary answer d-none mt-2\">${item.to}</div>\n              <button class=\"btn btn-sm btn-outline-primary mt-3\">Antwort anzeigen</button>\n            </div>\n          </div>`;
+          <div class=\"card h-100 learn-card\">\n            <div class=\"card-body\">\n              <div class=\"d-flex justify-content-between align-items-start\">\n                <span class=\"badge bg-secondary\">#${item.num ?? ''}</span>\n                <div class=\"text-muted small\">${item.pron || ''}</div>\n              </div>\n              <div class=\"fw-bold mt-1\">${item.from}</div>\n              <div class=\"text-secondary answer d-none mt-2\">${item.to}</div>\n              <button class=\"btn btn-sm btn-outline-primary mt-3\">Antwort anzeigen</button>\n            </div>\n          </div>`;
         const btn = col.querySelector('button');
         const answer = col.querySelector('.answer');
         btn.addEventListener('click', () => { answer.classList.toggle('d-none'); });
@@ -199,6 +200,7 @@
     // Testing
     const testQuestion = document.getElementById('test-question');
     const testPron = document.getElementById('test-pron');
+  const testNum = document.getElementById('test-num');
     const testAnswer = document.getElementById('test-answer');
     const btnShow = document.getElementById('btn-show');
     const btnKnown = document.getElementById('btn-known');
@@ -210,6 +212,7 @@
     function resetTestUI() {
       testQuestion.textContent = '—';
       testPron.textContent = '';
+  testNum.textContent = '';
       testAnswer.textContent = '—';
       testAnswer.classList.add('d-none');
       btnKnown.disabled = true;
@@ -246,6 +249,7 @@
         currentTestItem = data;
         testQuestion.textContent = data.question;
         testPron.textContent = data.pron || '';
+  testNum.textContent = (data.num !== undefined && data.num !== null) ? `Nr. ${data.num}` : '';
         testAnswer.textContent = data.answer;
         testAnswer.classList.add('d-none');
         btnKnown.disabled = false;
