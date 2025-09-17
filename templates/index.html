@@ -10,7 +10,7 @@
 <body>
   <div class="container py-4">
     <header class="d-flex justify-content-between align-items-center mb-3">
-      <h1 class="h3 m-0">FR ⇄ DE Vokabeltrainer</h1>
+  <h1 class="h3 m-0" id="app-title">FR ⇄ DE Vokabeltrainer</h1>
       <div>
         <button id="btn-home" class="btn btn-warning d-none">Menü</button>
       </div>
@@ -159,6 +159,18 @@
           return;
         }
         count.textContent = `${learnData.length} Einträge`;
+        // Toggle labels for Latin dataset
+        const isLatin = learnData[0]?.dataset === 'latin';
+        const title = document.getElementById('app-title');
+        if (isLatin) {
+          title.textContent = 'LA ⇄ DE Vokabeltrainer';
+          dirFrDe.textContent = 'LA → DE';
+          dirDeFr.textContent = 'DE → LA';
+        } else {
+          title.textContent = 'FR ⇄ DE Vokabeltrainer';
+          dirFrDe.textContent = 'FR → DE';
+          dirDeFr.textContent = 'DE → FR';
+        }
         renderLearnPage();
       } catch (e) {
         console.error(e);
@@ -185,8 +197,14 @@
       slice.forEach((item) => {
         const col = document.createElement('div');
         col.className = 'col-12 col-md-6 col-lg-4';
+        const extraLatin = item.dataset === 'latin' ? `
+            <div class=\"mt-1 small text-muted\">${item.pos || ''}${item.pp ? ' • ' + item.pp : ''}</div>
+            <div class=\"text-secondary answer d-none mt-2\">${item.to}${item.ex_la || item.ex_de ? `<div class=\"mt-2 small\"><span class=\"text-muted\">${item.ex_la || ''}</span>${item.ex_de ? ' — ' + item.ex_de : ''}</div>` : ''}</div>
+          ` : `
+            <div class=\"text-secondary answer d-none mt-2\">${item.to}</div>
+          `;
         col.innerHTML = `
-          <div class=\"card h-100 learn-card\">\n            <div class=\"card-body\">\n              <div class=\"d-flex justify-content-between align-items-start\">\n                <span class=\"badge bg-secondary\">#${item.num ?? ''}</span>\n                <div class=\"text-muted small\">${item.pron || ''}</div>\n              </div>\n              <div class=\"fw-bold mt-1\">${item.from}</div>\n              <div class=\"text-secondary answer d-none mt-2\">${item.to}</div>\n              <button class=\"btn btn-sm btn-outline-primary mt-3\">Antwort anzeigen</button>\n            </div>\n          </div>`;
+          <div class=\"card h-100 learn-card\">\n            <div class=\"card-body\">\n              <div class=\"d-flex justify-content-between align-items-start\">\n                <span class=\"badge bg-secondary\">#${item.num ?? ''}</span>\n                <div class=\"text-muted small\">${item.pron || ''}</div>\n              </div>\n              <div class=\"fw-bold mt-1\">${item.from}</div>\n              ${extraLatin}\n              <button class=\"btn btn-sm btn-outline-primary mt-3\">Antwort anzeigen</button>\n            </div>\n          </div>`;
         const btn = col.querySelector('button');
         const answer = col.querySelector('.answer');
         btn.addEventListener('click', () => { answer.classList.toggle('d-none'); });
@@ -234,6 +252,18 @@
         const remain = Math.max(0, total - knownN);
         knownCount.textContent = `${knownN} bekannt`;
         remainingLabel.textContent = `Verbleibend: ${remain} / ${total}`;
+        // Update labels for Latin dataset even in Testing mode
+        const isLatin = Array.isArray(vocab) && vocab[0]?.dataset === 'latin';
+        const title = document.getElementById('app-title');
+        if (isLatin) {
+          title.textContent = 'LA ⇄ DE Vokabeltrainer';
+          dirFrDe.textContent = 'LA → DE';
+          dirDeFr.textContent = 'DE → LA';
+        } else {
+          title.textContent = 'FR ⇄ DE Vokabeltrainer';
+          dirFrDe.textContent = 'FR → DE';
+          dirDeFr.textContent = 'DE → FR';
+        }
       } catch (e) {}
     }
 
@@ -241,7 +271,7 @@
       try {
     const exclude = Array.from(testedNums).join(',');
     const url = `/test?direction=${encodeURIComponent(direction)}${exclude ? `&exclude=${encodeURIComponent(exclude)}` : ''}`;
-    const res = await fetch(url);
+        const res = await fetch(url);
         if (!res.ok) {
           const err = await res.json();
           testQuestion.textContent = err.detail || 'Keine Daten';
@@ -252,9 +282,20 @@
         const data = await res.json();
         currentTestItem = data;
         testQuestion.textContent = data.question;
-        testPron.textContent = data.pron || '';
+        // Latin dataset: show POS/PP as metadata instead of pron
+        if (data.dataset === 'latin') {
+          testPron.textContent = [data.pos, data.pp].filter(Boolean).join(' • ');
+        } else {
+          testPron.textContent = data.pron || '';
+        }
   testNum.textContent = (data.num !== undefined && data.num !== null) ? `Nr. ${data.num}` : '';
-        testAnswer.textContent = data.answer;
+        // For Latin, include example lines in the shown answer
+        if (data.dataset === 'latin') {
+          const extra = (data.ex_la || data.ex_de) ? `\n${data.ex_la || ''}${data.ex_de ? ' — ' + data.ex_de : ''}` : '';
+          testAnswer.textContent = `${data.answer}${extra}`;
+        } else {
+          testAnswer.textContent = data.answer;
+        }
         testAnswer.classList.add('d-none');
         btnKnown.disabled = false;
         updateCounts();

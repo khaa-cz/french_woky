@@ -85,12 +85,17 @@ def load_vocab() -> List[Dict[str, str]]:
     if not os.path.isdir(WORDS_DIR):
         return result
     try:
-        files = [f for f in os.listdir(WORDS_DIR) if f.endswith('.json')]
-        # natural sort by embedded number in filenames like list1.json, list2.json, ...
-        def file_key(name: str):
-            m = re.search(r"(\d+)", name)
-            return (int(m.group(1)) if m else float('inf'), name)
-        files.sort(key=file_key)
+        files_all = [f for f in os.listdir(WORDS_DIR) if f.endswith('.json')]
+        # If latin.json exists, prioritize it exclusively (use Latin dataset)
+        if 'latin.json' in files_all:
+            files = ['latin.json']
+        else:
+            files = files_all
+            # natural sort by embedded number in filenames like list1.json, list2.json, ...
+            def file_key(name: str):
+                m = re.search(r"(\d+)", name)
+                return (int(m.group(1)) if m else float('inf'), name)
+            files.sort(key=file_key)
     except Exception:
         files = []
 
@@ -102,11 +107,33 @@ def load_vocab() -> List[Dict[str, str]]:
             items = parse_json_relaxed(raw)
             if isinstance(items, list):
                 for it in items:
-                    fr = (it.get("fr") or it.get("french") or it.get("fr_word") or "").strip()
-                    de = (it.get("de") or it.get("german") or it.get("de_word") or "").strip()
-                    pron = (it.get("pron") or it.get("pronunciation") or "").strip()
-                    if fr and de:
-                        result.append({"fr": fr, "de": de, "pron": pron})
+                    if fname == 'latin.json' or 'lemma' in it or 'translation_de' in it:
+                        # Latin schema mapping
+                        la = (it.get("lemma") or "").strip()
+                        de = (it.get("translation_de") or "").strip()
+                        pos = (it.get("pos") or "").strip()
+                        pp = (it.get("principal_parts") or "").strip()
+                        ex = it.get("declension_example") or {}
+                        ex_la = (ex.get("la") or "").strip() if isinstance(ex, dict) else ""
+                        ex_de = (ex.get("de") or "").strip() if isinstance(ex, dict) else ""
+                        if la and de:
+                            result.append({
+                                "fr": la,   # reuse 'fr' field as source term (Latin)
+                                "de": de,
+                                "pron": "",  # not used for Latin; keep for compatibility
+                                "pos": pos,
+                                "pp": pp,
+                                "ex_la": ex_la,
+                                "ex_de": ex_de,
+                                "dataset": "latin"
+                            })
+                    else:
+                        # FR-DE schema mapping
+                        fr = (it.get("fr") or it.get("french") or it.get("fr_word") or "").strip()
+                        de = (it.get("de") or it.get("german") or it.get("de_word") or "").strip()
+                        pron = (it.get("pron") or it.get("pronunciation") or "").strip()
+                        if fr and de:
+                            result.append({"fr": fr, "de": de, "pron": pron, "dataset": "frde"})
         except Exception:
             # skip malformed file
             continue
@@ -146,7 +173,12 @@ def transform_direction(direction: str, items: List[Dict[str, str]]):
                 "pron": it.get("pron", ""),
                 "fr": it["fr"],
                 "de": it["de"],
-                "num": it.get("num")
+                "num": it.get("num"),
+                "pos": it.get("pos", ""),
+                "pp": it.get("pp", ""),
+                "ex_la": it.get("ex_la", ""),
+                "ex_de": it.get("ex_de", ""),
+                "dataset": it.get("dataset", "")
             })
         else:
             mapped.append({
@@ -155,7 +187,12 @@ def transform_direction(direction: str, items: List[Dict[str, str]]):
                 "pron": it.get("pron", ""),
                 "fr": it["fr"],
                 "de": it["de"],
-                "num": it.get("num")
+                "num": it.get("num"),
+                "pos": it.get("pos", ""),
+                "pp": it.get("pp", ""),
+                "ex_la": it.get("ex_la", ""),
+                "ex_de": it.get("ex_de", ""),
+                "dataset": it.get("dataset", "")
             })
     return mapped
 
@@ -191,7 +228,12 @@ async def test(direction: str = "fr-de", exclude: Optional[str] = None):
             "pron": choice.get("pron", ""),
             "fr": choice["fr"],
             "de": choice["de"],
-            "num": choice.get("num")
+            "num": choice.get("num"),
+            "pos": choice.get("pos", ""),
+            "pp": choice.get("pp", ""),
+            "ex_la": choice.get("ex_la", ""),
+            "ex_de": choice.get("ex_de", ""),
+            "dataset": choice.get("dataset", "")
         }
     else:
         payload = {
@@ -200,7 +242,12 @@ async def test(direction: str = "fr-de", exclude: Optional[str] = None):
             "pron": choice.get("pron", ""),
             "fr": choice["fr"],
             "de": choice["de"],
-            "num": choice.get("num")
+            "num": choice.get("num"),
+            "pos": choice.get("pos", ""),
+            "pp": choice.get("pp", ""),
+            "ex_la": choice.get("ex_la", ""),
+            "ex_de": choice.get("ex_de", ""),
+            "dataset": choice.get("dataset", "")
         }
     return payload
 
